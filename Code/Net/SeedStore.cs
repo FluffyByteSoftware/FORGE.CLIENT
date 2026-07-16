@@ -25,7 +25,7 @@ namespace ForgeClient.Code.Net;
 /// password path.</remarks>
 internal static class SeedStore
 {
-    private const string SeedDirectory = "E:/Forge/seeds";
+    private const string SeedDirectory = "user://seeds";
 
     /// <summary>
     /// Stores an account's private seed, overwriting any previous one -
