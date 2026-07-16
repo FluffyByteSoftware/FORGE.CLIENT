@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Forge Client"
-run/main_scene="uid://cr8bo24coxrm4"
+run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 

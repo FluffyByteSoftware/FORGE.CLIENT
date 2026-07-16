@@ -62,6 +62,19 @@ internal static class SeedStore
         }
     }
 
+    /// <summary>
+    /// Deletes an account's stored seed, if one exists. Called when the
+    /// user connects with remember-me unchecked - "don't remember me"
+    /// means the disk forgets.
+    /// </summary>
+    internal static void Delete(string accountId)
+    {
+        string path = PathFor(accountId);
+
+        if (File.Exists(path))
+            File.Delete(path);
+    }
+
     // Filename derives from the account id. Account ids that are valid on
     // the server are safe filename material today; revisit if account id
     // rules ever loosen.

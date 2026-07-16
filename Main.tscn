@@ -1,17 +1,17 @@
-[gd_scene load_steps=2 format=3 uid="uid://forge_main_scene"]
+[gd_scene format=3 uid="uid://dbsnj460uub3d"]
 
-[ext_resource type="Script" path="res://Main.cs" id="1_main"]
+[ext_resource type="Script" uid="uid://ca72tqje3rfd1" path="res://Code/Main.cs" id="1_glv2v"]
 
-[node name="Main" type="Control"]
+[node name="Main" type="Control" unique_id=594512360]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_main")
+script = ExtResource("1_glv2v")
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1316856758]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -19,46 +19,46 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="LoginBox" type="VBoxContainer" parent="CenterContainer"]
-layout_mode = 2
+[node name="LoginBox" type="VBoxContainer" parent="CenterContainer" unique_id=1455943866]
 custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ServerEdit" type="LineEdit" parent="CenterContainer/LoginBox"]
+[node name="ServerEdit" type="LineEdit" parent="CenterContainer/LoginBox" unique_id=1474897878]
 layout_mode = 2
 text = "10.0.0.84:9997"
 placeholder_text = "server host:port"
 
-[node name="AccountEdit" type="LineEdit" parent="CenterContainer/LoginBox"]
+[node name="AccountEdit" type="LineEdit" parent="CenterContainer/LoginBox" unique_id=443347151]
 layout_mode = 2
 placeholder_text = "account"
 
-[node name="PasswordEdit" type="LineEdit" parent="CenterContainer/LoginBox"]
+[node name="PasswordEdit" type="LineEdit" parent="CenterContainer/LoginBox" unique_id=1576858611]
 layout_mode = 2
 placeholder_text = "password"
 secret = true
 
-[node name="RememberCheck" type="CheckBox" parent="CenterContainer/LoginBox"]
+[node name="RememberCheck" type="CheckBox" parent="CenterContainer/LoginBox" unique_id=2143131111]
 layout_mode = 2
 text = "Remember me"
 
-[node name="ConnectButton" type="Button" parent="CenterContainer/LoginBox"]
+[node name="ConnectButton" type="Button" parent="CenterContainer/LoginBox" unique_id=438046228]
 layout_mode = 2
 text = "Connect"
 
-[node name="NameEdit" type="LineEdit" parent="CenterContainer/LoginBox"]
-layout_mode = 2
+[node name="NameEdit" type="LineEdit" parent="CenterContainer/LoginBox" unique_id=1804995264]
 visible = false
+layout_mode = 2
 placeholder_text = "character name (3-14 lowercase)"
 
-[node name="NameButton" type="Button" parent="CenterContainer/LoginBox"]
-layout_mode = 2
+[node name="NameButton" type="Button" parent="CenterContainer/LoginBox" unique_id=218436225]
 visible = false
+layout_mode = 2
 text = "Create Character"
 
-[node name="StatusLabel" type="Label" parent="CenterContainer/LoginBox"]
+[node name="StatusLabel" type="Label" parent="CenterContainer/LoginBox" unique_id=1114278103]
+custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
 text = "Ready."
-autowrap_mode = 3
-custom_minimum_size = Vector2(320, 0)
 horizontal_alignment = 1
+autowrap_mode = 3

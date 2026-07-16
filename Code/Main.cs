@@ -16,238 +16,369 @@ using System.Threading.Tasks;
 namespace ForgeClient;
 
 /// <summary>
-/// Root scene script. Currently the wire test harness: runs the full
-/// verified chain against the live dev servers - auth (stored-seed key
-/// auth, or password auth that mints one), character create when needed,
-/// then the UDP session through admission, version check, and both echo
-/// legs. Real login UI replaces this once the chain is proven.
+/// Root scene script: the login screen. Drives the full verified chain
+/// from typed input - server address, account, password, remember-me -
+/// through auth, character create when needed, and into the held UDP
+/// session, narrating each leg on the status label.
 /// </summary>
-public partial class Main : Node
+/// <remarks>Threading contract, load-bearing: auth continuations run off
+/// the main thread (ConfigureAwait(false) throughout the Net layer), so
+/// every UI touch from the flow marshals through <see cref="Defer"/>.
+/// Field values are read on the main thread in the button handlers and
+/// passed into the flow as parameters - LineEdit.Text is never read from
+/// a continuation. The name-create sub-state bridges back the other way:
+/// the flow awaits a TaskCompletionSource the name button completes.
+/// </remarks>
+public partial class Main : Control
 {
-    // Fill in with a real dev account before running. Test-harness
-    // constants, not a credential story - that arrives with the login UI.
-    private const string AccountId = "poopypants";
-    private const string Password = "poopy";
+    private LineEdit _serverEdit = null!;
+    private LineEdit _accountEdit = null!;
+    private LineEdit _passwordEdit = null!;
+    private CheckBox _rememberCheck = null!;
+    private Button _connectButton = null!;
+    private LineEdit _nameEdit = null!;
+    private Button _nameButton = null!;
+    private Label _statusLabel = null!;
 
-    // The held UDP session, alive from a successful Ok auth until the game
-    // quits. Static because the auth flow is static; becomes real state
-    // management when the harness grows into the actual client.
-    private static UdpSession? _udpSession;
+    private LoginPrefs _prefs = null!;
+
+    // Owned by the main thread: assigned via Defer on session start, read
+    // in _ExitTree. Single-threaded access by construction.
+    private UdpSession? _udpSession;
+
+    // The bridge between the create flow (poll/task thread) and the name
+    // button (main thread). RunContinuationsAsynchronously keeps the auth
+    // flow's continuation off the main thread when the button completes it.
+    private TaskCompletionSource<string?>? _pendingName;
 
     public override void _Ready()
     {
-        GD.Print("[Forge] Auth flow against "
-            + $"{ForgeTransport.ServerHost}:{ForgeTransport.ServerPort}");
+        const string box = "CenterContainer/LoginBox/";
 
-        // Fire-and-forget with explicit fault surfacing: an unobserved
-        // exception in an async void would vanish silently.
-        _ = RunAuthFlowAsync();
+        _serverEdit = GetNode<LineEdit>(box + "ServerEdit");
+        _accountEdit = GetNode<LineEdit>(box + "AccountEdit");
+        _passwordEdit = GetNode<LineEdit>(box + "PasswordEdit");
+        _rememberCheck = GetNode<CheckBox>(box + "RememberCheck");
+        _connectButton = GetNode<Button>(box + "ConnectButton");
+        _nameEdit = GetNode<LineEdit>(box + "NameEdit");
+        _nameButton = GetNode<Button>(box + "NameButton");
+        _statusLabel = GetNode<Label>(box + "StatusLabel");
+
+        _prefs = LoginPrefs.Load();
+        _serverEdit.Text = _prefs.Server;
+        _accountEdit.Text = _prefs.Account;
+        _rememberCheck.ButtonPressed = _prefs.Remember;
+
+        _connectButton.Pressed += OnConnectPressed;
+        _nameButton.Pressed += OnNamePressed;
     }
 
     public override void _ExitTree()
     {
-        // Quit path: stop the poll thread and close the session clean.
         _udpSession?.Stop();
         _udpSession = null;
     }
 
-    // Continuations after ConfigureAwait(false) run off the main thread.
-    // GD.Print is thread-safe; touching the scene tree from here is NOT -
-    // when results drive UI, marshal via CallDeferred.
-    private static async Task RunAuthFlowAsync()
+    // Main thread: reads every field, validates, configures the transport,
+    // persists prefs, then hands plain values to the background flow.
+    private void OnConnectPressed()
+    {
+        string server = _serverEdit.Text.Trim();
+        string account = _accountEdit.Text.Trim();
+        string password = _passwordEdit.Text;
+        bool remember = _rememberCheck.ButtonPressed;
+
+        if (account.Length == 0)
+        {
+            _statusLabel.Text = "Account name required.";
+            return;
+        }
+
+        if (!TryParseServer(server, out string host, out int port))
+        {
+            _statusLabel.Text = $"Bad server address \"{server}\" "
+                + "(expected host:port).";
+            return;
+        }
+
+        ForgeTransport.ServerHost = host;
+        ForgeTransport.ServerPort = port;
+
+        _prefs.Server = server;
+        _prefs.Account = account;
+        _prefs.Remember = remember;
+        _prefs.Save();
+
+        // "Don't remember me" means the disk forgets, now.
+        if (!remember)
+            SeedStore.Delete(account);
+
+        SetFormEnabled(false);
+        _statusLabel.Text = $"Connecting to {host}:{port} ...";
+
+        // Fire-and-forget with explicit fault surfacing inside the flow.
+        _ = RunLoginAsync(account, password, remember);
+    }
+
+    // Everything below the first await runs off the main thread.
+    private async Task RunLoginAsync(
+        string account, string password, bool remember)
     {
         try
         {
-            byte[]? seed = SeedStore.Load(AccountId);
+            byte[]? seed = remember ? SeedStore.Load(account) : null;
 
-            if (seed is null)
+            if (seed is not null)
             {
-                GD.Print("[Forge] No stored seed; password auth first.");
+                Status("Stored key found; authenticating ...");
 
-                seed = await PasswordAuthAndStoreSeedAsync()
-                    .ConfigureAwait(false);
+                AuthAttemptResult fast =
+                    await AuthClient.KeyAuthAsync(account, seed)
+                        .ConfigureAwait(false);
 
-                if (seed is null)
+                if (fast.Succeeded)
+                {
+                    await HandleAuthOutcomeAsync(
+                        account, seed, remember, fast.Response)
+                        .ConfigureAwait(false);
                     return;
+                }
+
+                // Stored key rejected - expired (3-day server expiry) or
+                // stale. Fall back to password if one was typed; otherwise
+                // ask for it. Either way the bad seed's fate follows the
+                // checkbox: a fresh password success re-mints and re-saves.
+                if (password.Length == 0)
+                {
+                    Status("Stored key rejected "
+                        + $"({fast.FailureReason}); enter password "
+                        + "and reconnect.");
+                    ReleaseForm();
+                    return;
+                }
+
+                Status("Stored key rejected; trying password ...");
             }
-            else
+
+            if (password.Length == 0)
             {
-                GD.Print("[Forge] Stored seed found; key auth directly.");
-            }
-
-            GD.Print("[Forge] Key auth with seed ...");
-
-            AuthAttemptResult keyResult =
-                await AuthClient.KeyAuthAsync(AccountId, seed)
-                    .ConfigureAwait(false);
-
-            if (!keyResult.Succeeded)
-            {
-                GD.PrintErr(
-                    $"[Forge] Key auth failed: {keyResult.FailureReason}");
+                Status("Password required.");
+                ReleaseForm();
                 return;
             }
 
-            ReportOutcome("Key auth", keyResult.Response);
+            Status("Password auth ...");
 
-            switch (keyResult.Response.Outcome)
+            AuthAttemptResult pw =
+                await AuthClient.PasswordAuthAsync(account, password)
+                    .ConfigureAwait(false);
+
+            if (!pw.Succeeded)
             {
-                case AuthOutcome.Ok:
-                    StartUdpSession(keyResult.Response);
-                    break;
-
-                case AuthOutcome.NeedsCharacter:
-                    await CreateAndReauthAsync(seed).ConfigureAwait(false);
-                    break;
+                Status($"Login failed: {pw.FailureReason}");
+                ReleaseForm();
+                return;
             }
+
+            if (string.IsNullOrEmpty(pw.Response.IssuedPrivateKey))
+            {
+                Status("Server returned no key on password success; "
+                    + "cannot continue.");
+                ReleaseForm();
+                return;
+            }
+
+            // Always minted, always used; disk only if remember is on.
+            seed = Convert.FromBase64String(pw.Response.IssuedPrivateKey);
+
+            if (remember)
+                SeedStore.Save(account, seed);
+
+            Status("Key issued; authenticating ...");
+
+            AuthAttemptResult key =
+                await AuthClient.KeyAuthAsync(account, seed)
+                    .ConfigureAwait(false);
+
+            if (!key.Succeeded)
+            {
+                Status($"Key auth failed: {key.FailureReason}");
+                ReleaseForm();
+                return;
+            }
+
+            await HandleAuthOutcomeAsync(
+                account, seed, remember, key.Response)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            GD.PrintErr($"[Forge] Auth flow threw: {ex}");
+            GD.PrintErr($"[Forge] Login flow threw: {ex}");
+            Status($"Login failed: {ex.Message}");
+            ReleaseForm();
         }
     }
 
-    // The token is single-use with a 30 s lifetime, so the session starts
-    // immediately from whichever path minted it.
-    private static void StartUdpSession(AuthResponsePacket response)
-    {
-        _udpSession = new UdpSession(
-            response.UdpEndpoint, response.SessionToken);
-        _udpSession.Start();
-    }
-
-    // Leg 1 with persistence: password auth, then store the freshly minted
-    // seed. Returns the seed for the key-auth leg, or null when the flow
-    // cannot continue. An empty IssuedPrivateKey on success is anomalous -
-    // the server mints on every password success, for either outcome.
-    private static async Task<byte[]?> PasswordAuthAndStoreSeedAsync()
-    {
-        AuthAttemptResult result =
-            await AuthClient.PasswordAuthAsync(AccountId, Password)
-                .ConfigureAwait(false);
-
-        if (!result.Succeeded)
-        {
-            GD.PrintErr(
-                $"[Forge] Password auth failed: {result.FailureReason}");
-            return null;
-        }
-
-        ReportOutcome("Password auth", result.Response);
-
-        if (string.IsNullOrEmpty(result.Response.IssuedPrivateKey))
-        {
-            GD.PrintErr("[Forge] Password success returned no private "
-                + "key; cannot continue to key auth.");
-            return null;
-        }
-
-        byte[] seed =
-            Convert.FromBase64String(result.Response.IssuedPrivateKey);
-        SeedStore.Save(AccountId, seed);
-
-        GD.Print($"[Forge] Seed stored ({seed.Length} bytes).");
-        return seed;
-    }
-
-    // Client mirror of the Probe's ReportAuthLeg: Ok and NeedsCharacter are
-    // both valid outcomes; anything else (including None, which the server
-    // never writes) is a loud failure.
-    private static void ReportOutcome(
-        string leg, AuthResponsePacket response)
+    // Converges both auth paths, exactly as the harness did: Ok starts the
+    // session, NeedsCharacter runs the create flow then re-auths.
+    private async Task HandleAuthOutcomeAsync(
+        string account, byte[] seed, bool remember,
+        AuthResponsePacket response)
     {
         switch (response.Outcome)
         {
             case AuthOutcome.Ok:
-                GD.Print($"[Forge] {leg} OK. "
-                    + $"token={Truncate(response.SessionToken)} "
-                    + $"udp={response.UdpEndpoint}");
-                break;
+                StartUdpSession(response);
+                return;
 
             case AuthOutcome.NeedsCharacter:
-                GD.Print($"[Forge] {leg} OK: NeedsCharacter "
-                    + "(no token; create required).");
+                Status("No character on this account; create one.");
                 break;
 
             default:
-                GD.PrintErr($"[Forge] {leg}: unexpected outcome "
-                    + $"{response.Outcome}; expected Ok or NeedsCharacter.");
-                break;
+                Status($"Unexpected auth outcome {response.Outcome}.");
+                ReleaseForm();
+                return;
         }
-    }
 
-    private static string Truncate(string value) =>
-        value.Length <= 12 ? value : value[..12] + "...";
-
-    // Canned name candidates for the harness: the first is deliberately
-    // invalid to exercise the in-place retry live, the second may collide
-    // if re-run, the third is the landing spot. The provider seam is what
-    // the login UI will eventually occupy.
-    private static readonly string[] NameCandidates =
-        ["X9!", "grumble", "grumblesnout"];
-
-    private static int _nameIndex;
-
-    private static Task<string?> NextCannedName(
-        CharacterCreateOutcome? lastRejection)
-    {
-        if (lastRejection is not null)
-            GD.Print($"[Forge] Name rejected: {lastRejection}; retrying.");
-
-        string? next = _nameIndex < NameCandidates.Length
-            ? NameCandidates[_nameIndex++]
-            : null;
-
-        if (next is not null)
-            GD.Print($"[Forge] Trying name \"{next}\".");
-
-        return Task.FromResult(next);
-    }
-
-    // The create flow plus the re-auth that mints the token through the
-    // single verified issuance path - Created closes the connection clean,
-    // the account now owns a character, and the same seed stays valid. An
-    // Ok re-auth flows straight into the UDP session, converging with the
-    // direct path exactly as the Probe's Program does.
-    private static async Task CreateAndReauthAsync(byte[] seed)
-    {
-        GD.Print("[Forge] Create flow (held-open connection) ...");
-
-        CreateFlowResult createResult =
+        CreateFlowResult created =
             await CreateClient.CreateCharacterAsync(
-                AccountId, seed, NextCannedName)
+                account, seed, NextTypedNameAsync)
                 .ConfigureAwait(false);
 
-        if (!createResult.Created)
+        Defer(() =>
         {
-            GD.PrintErr(
-                $"[Forge] Create failed: {createResult.FailureReason}");
+            _nameEdit.Visible = false;
+            _nameButton.Visible = false;
+        });
+
+        if (!created.Created)
+        {
+            Status($"Create failed: {created.FailureReason}");
+            ReleaseForm();
             return;
         }
 
-        GD.Print("[Forge] Character created. Re-auth for token ...");
+        Status("Character created; signing in ...");
 
         AuthAttemptResult reauth =
-            await AuthClient.KeyAuthAsync(AccountId, seed)
+            await AuthClient.KeyAuthAsync(account, seed)
                 .ConfigureAwait(false);
 
-        if (!reauth.Succeeded)
+        if (!reauth.Succeeded
+            || reauth.Response.Outcome != AuthOutcome.Ok)
         {
-            GD.PrintErr(
-                $"[Forge] Re-auth failed: {reauth.FailureReason}");
-            return;
-        }
-
-        ReportOutcome("Re-auth", reauth.Response);
-
-        if (reauth.Response.Outcome != AuthOutcome.Ok)
-        {
-            GD.PrintErr("[Forge] Expected Ok after create; got "
-                + $"{reauth.Response.Outcome}.");
+            Status("Sign-in after create failed: "
+                + (reauth.Succeeded
+                    ? $"outcome {reauth.Response.Outcome}"
+                    : reauth.FailureReason));
+            ReleaseForm();
             return;
         }
 
         StartUdpSession(reauth.Response);
+    }
+
+    // The provider seam, now occupied by the player: reveal the name row,
+    // hand back a task the name button completes. Called on the flow's
+    // thread; all UI work defers.
+    private Task<string?> NextTypedNameAsync(
+        CharacterCreateOutcome? lastRejection)
+    {
+        var tcs = new TaskCompletionSource<string?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingName = tcs;
+
+        Defer(() =>
+        {
+            _statusLabel.Text = lastRejection is null
+                ? "Choose a character name (3-14 lowercase letters)."
+                : $"Name rejected ({lastRejection}); try another.";
+
+            _nameEdit.Visible = true;
+            _nameButton.Visible = true;
+            _nameEdit.Editable = true;
+            _nameButton.Disabled = false;
+            _nameEdit.GrabFocus();
+        });
+
+        return tcs.Task;
+    }
+
+    // Main thread: completes the pending provider task with the typed name.
+    private void OnNamePressed()
+    {
+        string name = _nameEdit.Text.Trim();
+
+        if (name.Length == 0)
+        {
+            _statusLabel.Text = "Enter a name.";
+            return;
+        }
+
+        _nameEdit.Editable = false;
+        _nameButton.Disabled = true;
+        _statusLabel.Text = $"Submitting \"{name}\" ...";
+
+        _pendingName?.TrySetResult(name);
+    }
+
+    // Session start deferred to the main thread so _udpSession is only
+    // ever touched there. The token's 30 s lifetime dwarfs one frame of
+    // deferral. The form stays disabled - the login screen's job is done.
+    private void StartUdpSession(AuthResponsePacket response)
+    {
+        Status($"Signed in; connecting UDP {response.UdpEndpoint} ...");
+
+        Defer(() =>
+        {
+            _udpSession = new UdpSession(
+                response.UdpEndpoint, response.SessionToken);
+            _udpSession.Start();
+        });
+    }
+
+    // ---- UI marshaling helpers -------------------------------------
+
+    // The one door between the flow's threads and the scene tree.
+    private static void Defer(Action action) =>
+        Callable.From(action).CallDeferred();
+
+    private void Status(string message)
+    {
+        GD.Print($"[Forge] {message}");
+        Defer(() => _statusLabel.Text = message);
+    }
+
+    private void ReleaseForm() =>
+        Defer(() => SetFormEnabled(true));
+
+    // Main thread only.
+    private void SetFormEnabled(bool enabled)
+    {
+        _serverEdit.Editable = enabled;
+        _accountEdit.Editable = enabled;
+        _passwordEdit.Editable = enabled;
+        _rememberCheck.Disabled = !enabled;
+        _connectButton.Disabled = !enabled;
+    }
+
+    private static bool TryParseServer(
+        string value, out string host, out int port)
+    {
+        host = string.Empty;
+        port = 0;
+
+        int split = value.LastIndexOf(':');
+
+        if (split <= 0 || split == value.Length - 1)
+            return false;
+
+        if (!int.TryParse(value[(split + 1)..], out port) || port <= 0)
+            return false;
+
+        host = value[..split];
+        return true;
     }
 }
 

@@ -31,12 +31,14 @@ namespace ForgeClient.Code.Net;
 /// </remarks>
 internal static class ForgeTransport
 {
-    // MUST match the LoginServer's network.json BindAddress/Port. Dev value;
-    // becomes configuration when the client grows a config story.
-    internal const string ServerHost = "10.0.0.84";
+    // MUST match the LoginServer's network.json BindAddress/Port. Dev
+    // defaults; the login UI overwrites both from its server field before
+    // connecting. Written once per connect attempt from the main thread,
+    // read by the auth tasks that attempt spawns - no concurrent access.
+    internal static string ServerHost { get; set; } = "10.0.0.84";
 
     // MUST match the "Port" in the LoginServer's network.json.
-    internal const int ServerPort = 9997;
+    internal static int ServerPort { get; set; } = 9997;
 
     // SNI target only - with accept-all validation it never has to match the
     // dev certificate's CN.
