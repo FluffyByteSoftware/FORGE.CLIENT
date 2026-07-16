@@ -1,0 +1,52 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.7.11925.98
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Forge Client", "Forge Client.csproj", "{F23B5B7C-B79E-447B-9098-DC341B344C85}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared", "..\Stratum\Driver\Shared\Shared.csproj", "{09D43045-160C-860B-C29B-415071E6A51D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Networking", "..\Stratum\Driver\Networking\Networking.csproj", "{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SystemTools", "..\Stratum\Driver\SystemTools\SystemTools.csproj", "{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		ExportDebug|Any CPU = ExportDebug|Any CPU
+		ExportRelease|Any CPU = ExportRelease|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F23B5B7C-B79E-447B-9098-DC341B344C85}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F23B5B7C-B79E-447B-9098-DC341B344C85}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F23B5B7C-B79E-447B-9098-DC341B344C85}.ExportDebug|Any CPU.ActiveCfg = ExportDebug|Any CPU
+		{F23B5B7C-B79E-447B-9098-DC341B344C85}.ExportDebug|Any CPU.Build.0 = ExportDebug|Any CPU
+		{F23B5B7C-B79E-447B-9098-DC341B344C85}.ExportRelease|Any CPU.ActiveCfg = ExportRelease|Any CPU
+		{F23B5B7C-B79E-447B-9098-DC341B344C85}.ExportRelease|Any CPU.Build.0 = ExportRelease|Any CPU
+		{09D43045-160C-860B-C29B-415071E6A51D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09D43045-160C-860B-C29B-415071E6A51D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09D43045-160C-860B-C29B-415071E6A51D}.ExportDebug|Any CPU.ActiveCfg = Release|Any CPU
+		{09D43045-160C-860B-C29B-415071E6A51D}.ExportDebug|Any CPU.Build.0 = Release|Any CPU
+		{09D43045-160C-860B-C29B-415071E6A51D}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{09D43045-160C-860B-C29B-415071E6A51D}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+		{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}.ExportDebug|Any CPU.ActiveCfg = Release|Any CPU
+		{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}.ExportDebug|Any CPU.Build.0 = Release|Any CPU
+		{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{1115D47D-DEE3-FF6A-7632-045D27F1C6B2}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+		{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}.ExportDebug|Any CPU.ActiveCfg = Release|Any CPU
+		{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}.ExportDebug|Any CPU.Build.0 = Release|Any CPU
+		{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}.ExportRelease|Any CPU.ActiveCfg = Release|Any CPU
+		{BA87A5A7-5834-2FA3-C3B7-4D3EC94658D2}.ExportRelease|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5367B799-D8EA-4752-A2AD-1CC04FAFB081}
+	EndGlobalSection
+EndGlobal

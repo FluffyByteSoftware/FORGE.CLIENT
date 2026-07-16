@@ -1,0 +1,13 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# .NET build artifacts
+.vs/
+bin/
+obj/
+Art/
+
+# Runtime secrets - dev seeds live in user://, not the project,
+# but belt-and-suspenders against any local copy
+*.seed

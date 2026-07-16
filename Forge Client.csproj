@@ -1,0 +1,17 @@
+﻿<Project Sdk="Godot.NET.Sdk/4.7.1">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>ForgeClient</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="LiteNetLib" Version="2.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Stratum\Driver\Networking\Networking.csproj" />
+    <ProjectReference Include="..\Stratum\Driver\Shared\Shared.csproj" />
+    <ProjectReference Include="..\Stratum\Driver\SystemTools\SystemTools.csproj" />
+  </ItemGroup>
+</Project>
