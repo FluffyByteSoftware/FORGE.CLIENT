@@ -34,3 +34,23 @@ pre-ship gates.
   Probe.
 
 ## Layout
+Main.tscn / Main.cs    Login screen; drives the full auth chain
+Code/Net/              Wire layer: ForgeTransport, AuthClient,
+CreateClient, UdpSession, SeedStore, LoginPrefs
+Art/                   Assets — deliberately unversioned (.gitignore)
+
+## Building
+
+Requires the Stratum repo checked out as a sibling
+(`..\Stratum\Driver\...` — see the .csproj references) and a running
+dev LoginServer/Sentinel to actually connect. Open in Godot 4.7 Mono,
+build, F5. Server endpoint is editable in the login form (dev default
+prefilled).
+
+## Conventions
+
+The wire specification is the Stratum Probe — every client network
+behavior mirrors a verified Probe leg, and when they disagree, the
+Probe is right. Threading rule, load-bearing: LiteNetLib polls on a
+dedicated background thread, never `_Process`; all UI updates from
+network continuations marshal via `CallDeferred`.
